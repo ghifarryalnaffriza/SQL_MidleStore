@@ -1,0 +1,75 @@
+-- =====================================================================
+-- GOLD VIEWS
+-- =====================================================================
+
+-- ---------------------------------------------------------
+-- KPI Summary: angka headline 1 baris
+-- ---------------------------------------------------------
+SELECT * FROM gold_kpi_summary;
+GO
+
+-- ---------------------------------------------------------
+-- Q1 & Q2: Produk paling MERUGIKAN (urut profit terkecil)
+-- ---------------------------------------------------------
+SELECT *
+FROM gold_by_product
+ORDER BY total_profit ASC
+GO
+
+-- Produk laris TAPI margin tipis/negatif
+SELECT *
+FROM gold_by_product
+WHERE total_sales > 150000
+  AND margin_pct < 10
+ORDER BY total_sales DESC;
+GO
+
+-- ---------------------------------------------------------
+-- Q3: Region paling bermasalah
+-- ---------------------------------------------------------
+SELECT *
+FROM gold_by_region
+ORDER BY total_profit ASC;
+GO
+
+-- Top 5 State paling merugi
+SELECT TOP 5 *
+FROM gold_top_loss_state
+ORDER BY total_profit ASC;
+GO
+
+-- ---------------------------------------------------------
+-- Q4: Discount threshold
+-- ---------------------------------------------------------
+SELECT *
+FROM gold_by_discount
+ORDER BY
+    CASE discount_bucket
+        WHEN '0%'     THEN 1
+        WHEN '1-20%'  THEN 2
+        WHEN '21-40%' THEN 3
+        WHEN '41%+'   THEN 4
+    END;
+GO
+
+-- ---------------------------------------------------------
+-- Q5: Dampak cap diskon 20%
+-- ---------------------------------------------------------
+SELECT * FROM gold_discount_cap_impact;
+GO
+
+-- ---------------------------------------------------------
+-- Ship Mode: profitabilitas per metode pengiriman
+-- ---------------------------------------------------------
+SELECT *
+FROM gold_by_shipmode
+ORDER BY total_profit DESC;
+GO
+
+-- ---------------------------------------------------------
+-- Q6: Segment pelanggan terbaik
+-- ---------------------------------------------------------
+SELECT *
+FROM gold_by_segment
+ORDER BY margin_pct DESC;
+GO
