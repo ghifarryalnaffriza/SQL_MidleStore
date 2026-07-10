@@ -1,0 +1,67 @@
+/* =====================================================================
+   MindleStore — BRONZE LAYER
+   Data Insight Challenge 2026
+   Layer: Bronze (raw data, apa adanya dari sumber)
+   Dialect: SQL Server (T-SQL)
+   Catatan: script ini AMAN dijalankan berulang (idempotent) -
+            schema/tabel dicek dulu, dan TRUNCATE mencegah data dobel.
+   ===================================================================== */
+ 
+-- =========================================================
+-- Create schema
+-- =========================================================
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'bronze')
+    EXEC('CREATE SCHEMA bronze');
+GO
+ 
+-- =========================================================
+-- Create table
+-- =========================================================
+IF OBJECT_ID('bronze.superstore_sales', 'U') IS NOT NULL
+    DROP TABLE bronze.superstore_sales;
+GO
+ 
+CREATE TABLE bronze.superstore_sales (
+    ship_mode     VARCHAR(50),
+    segment       VARCHAR(50),
+    country       VARCHAR(100),
+    city          VARCHAR(100),
+    state         VARCHAR(100),
+    postal_code   INT,
+    region        VARCHAR(20),
+    category      VARCHAR(50),
+    sub_category  VARCHAR(50),
+    sales         FLOAT,
+    quantity      INT,
+    discount      FLOAT,
+    profit        FLOAT
+);
+GO
+ 
+-- =========================================================
+-- Load data
+-- TRUNCATE dulu -> mencegah data dobel kalau BULK INSERT diulang
+-- =========================================================
+TRUNCATE TABLE bronze.superstore_sales;
+ 
+BULK INSERT bronze.superstore_sales
+FROM 'D:\Download Crome\MindleStore.csv'
+WITH (
+    FIRSTROW = 2,
+    FIELDTERMINATOR = ',',
+    ROWTERMINATOR = '\n',
+    TABLOCK
+);
+GO
+ 
+-- =========================================================
+-- Cek jumlah data
+-- =========================================================
+SELECT COUNT(*) AS total_baris FROM bronze.superstore_sales;
+GO
+ 
+-- =========================================================
+-- Cek isi data
+-- =========================================================
+SELECT TOP 100 * FROM bronze.superstore_sales;
+GO
