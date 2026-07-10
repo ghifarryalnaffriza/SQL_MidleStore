@@ -1,0 +1,136 @@
+-- KPI SUMMARY: angka headline untuk dashboard (satu baris)
+DROP VIEW IF EXISTS gold_kpi_summary;
+GO
+CREATE VIEW gold_kpi_summary AS
+SELECT
+    ROUND(SUM(sales),0) AS total_sales,
+    ROUND(SUM(profit),0) AS total_profit,
+    ROUND(SUM(profit) * 100.0 / SUM(sales),1) AS profit_margin_pct,
+    SUM(CASE WHEN profit < 0 THEN 1 ELSE 0 END) AS transaksi_rugi,
+    ROUND(SUM(CASE WHEN profit < 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS loss_rate_pct,
+    ROUND(AVG(discount) * 100,1) AS avg_discount_pct
+FROM silver.superstore_sales;
+GO
+
+-- Q1 & Q2: Profitabilitas per produk (paradox: sales tinggi tapi profit rendah)
+DROP VIEW IF EXISTS gold_by_product;
+GO
+
+CREATE VIEW gold_by_product AS
+
+SELECT
+    category,
+    sub_category,
+    ROUND(SUM(sales),0) AS total_sales,
+    ROUND(SUM(profit),0) AS total_profit,
+    ROUND(SUM(profit) * 100.0 / SUM(sales),1) AS margin_pct
+
+FROM silver.superstore_sales
+
+GROUP BY
+    category,
+    sub_category;
+GO
+
+SELECT *
+FROM gold_by_product
+ORDER BY total_profit DESC;
+
+-- Q3: Profitabilitas per region & state
+DROP VIEW IF EXISTS gold_by_region;
+GO
+
+CREATE VIEW gold_by_region AS
+SELECT
+    region,
+    ROUND(SUM(sales),0) AS total_sales,
+    ROUND(SUM(profit),0) AS total_profit,
+    SUM(is_loss) AS transaksi_rugi
+FROM silver.superstore_sales
+GROUP BY region;
+GO
+
+
+DROP VIEW IF EXISTS gold_top_loss_state;
+GO
+
+CREATE VIEW gold_top_loss_state AS
+SELECT
+    state,
+    ROUND(SUM(profit),0) AS total_profit,
+    SUM(is_loss) AS transaksi_rugi
+FROM silver.superstore_sales
+GROUP BY state
+HAVING SUM(profit) < 0;
+GO
+
+
+-- Q4: Discount threshold (bukti diskon >20% mulai rugi)
+DROP VIEW IF EXISTS gold_by_discount;
+GO
+
+CREATE VIEW gold_by_discount AS
+SELECT
+    discount_bucket,
+    COUNT(*) AS n_transaksi,
+    ROUND(AVG(profit),1) AS avg_profit,
+    ROUND(SUM(profit),0) AS total_profit
+FROM silver.superstore_sales
+GROUP BY discount_bucket;
+GO
+
+-- Q5 CAP DISKON: potensi profit jika diskon dibatasi maks 20%
+DROP VIEW IF EXISTS gold_discount_cap_impact;
+GO
+
+CREATE VIEW gold_discount_cap_impact AS
+
+SELECT
+    'Diskon > 20% (saat ini)' AS skenario,
+    COUNT(*) AS n_transaksi,
+    ROUND(SUM(profit),0) AS total_profit,
+    ROUND(SUM(sales),0) AS total_sales
+FROM silver.superstore_sales
+WHERE discount > 0.20
+
+UNION ALL
+
+SELECT
+    'Diskon <= 20% (sehat)' AS skenario,
+    COUNT(*) AS n_transaksi,
+    ROUND(SUM(profit),0) AS total_profit,
+    ROUND(SUM(sales),0) AS total_sales
+FROM silver.superstore_sales
+WHERE discount <= 0.20;
+GO
+
+-- Ship Mode: profitabilitas per metode pengiriman
+DROP VIEW IF EXISTS gold_by_shipmode;
+GO
+
+CREATE VIEW gold_by_shipmode AS
+SELECT
+    ship_mode,
+    COUNT(*) AS n_transaksi,
+    ROUND(SUM(sales),0) AS total_sales,
+    ROUND(SUM(profit),0) AS total_profit,
+    ROUND(SUM(profit) * 100.0 / SUM(sales),1) AS margin_pct
+FROM silver.superstore_sales
+GROUP BY ship_mode;
+GO
+
+-- Q6: Profitabilitas per segment pelanggan
+DROP VIEW IF EXISTS gold_by_segment;
+GO
+
+CREATE VIEW gold_by_segment AS
+SELECT
+    segment,
+    ROUND(SUM(sales), 0) AS total_sales,
+    ROUND(SUM(profit), 0) AS total_profit,
+    ROUND(SUM(profit) * 100.0 / SUM(sales), 1) AS margin_pct
+FROM silver.superstore_sales
+GROUP BY segment;
+GO
+
+
