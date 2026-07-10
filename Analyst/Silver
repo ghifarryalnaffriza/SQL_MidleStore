@@ -1,0 +1,158 @@
+/* =====================================================================
+   MindleStore — SILVER LAYER
+   Data Insight Challenge 2026
+   ===================================================================== */
+
+-- =========================================================
+-- Create schema
+-- =========================================================
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'silver')
+    EXEC('CREATE SCHEMA silver');
+GO
+
+-- =========================================================
+-- Create table
+-- =========================================================
+IF OBJECT_ID('silver.superstore_sales', 'U') IS NOT NULL
+    DROP TABLE silver.superstore_sales;
+GO
+
+CREATE TABLE silver.superstore_sales (
+    ship_mode        VARCHAR(50),
+    segment          VARCHAR(50),
+    country          VARCHAR(100),
+    city             VARCHAR(100),
+    state            VARCHAR(100),
+    postal_code      INT,
+    region           VARCHAR(20),
+    category         VARCHAR(50),
+    sub_category     VARCHAR(50),
+    sales            FLOAT,
+    quantity         INT,
+    discount         FLOAT,
+    profit           FLOAT,
+    profit_margin    FLOAT,
+    is_loss          INT,
+    discount_bucket  VARCHAR(20),
+    dwh_create_datetime DATETIME2 DEFAULT GETDATE()
+);
+GO
+
+-- =========================================================
+-- Cek kualitas data di Bronze
+-- =========================================================
+
+-- cek duplikat baris (semua kolom identik)
+SELECT ship_mode, 
+       segment, 
+       country, 
+       city, 
+       state, 
+       postal_code, 
+       region,
+       category, 
+       sub_category, 
+       sales, 
+       quantity, 
+       discount, 
+       profit,
+       COUNT(*) AS n
+FROM bronze.superstore_sales
+GROUP BY ship_mode, segment, country, city, state, postal_code, region,
+         category, sub_category, sales, quantity, discount, profit
+HAVING COUNT(*) > 1;
+GO
+
+-- cek spasi berlebih pada kolom teks
+SELECT category     FROM bronze.superstore_sales WHERE category     <> TRIM(category);
+SELECT sub_category FROM bronze.superstore_sales WHERE sub_category <> TRIM(sub_category);
+SELECT region       FROM bronze.superstore_sales WHERE region       <> TRIM(region);
+GO
+
+-- cek konsistensi value
+SELECT DISTINCT category  FROM bronze.superstore_sales;
+SELECT DISTINCT segment   FROM bronze.superstore_sales;
+SELECT DISTINCT region    FROM bronze.superstore_sales;
+SELECT DISTINCT ship_mode FROM bronze.superstore_sales;
+GO
+
+-- cek nilai tidak wajar
+SELECT COUNT(*) AS sales_invalid FROM bronze.superstore_sales WHERE sales <= 0;
+SELECT COUNT(*) AS qty_invalid   FROM bronze.superstore_sales WHERE quantity <= 0;
+SELECT MIN(discount) AS min_disc, MAX(discount) AS max_disc FROM bronze.superstore_sales;
+GO
+
+TRUNCATE TABLE silver.superstore_sales;
+
+INSERT INTO silver.superstore_sales (
+    ship_mode, 
+    segment, 
+    country, 
+    city, 
+    state, 
+    postal_code, 
+    region,
+    category, 
+    sub_category, 
+    sales, 
+    quantity, 
+    discount, 
+    profit,
+    profit_margin, 
+    
+    is_loss, discount_bucket
+)
+SELECT
+    TRIM(ship_mode),
+    TRIM(segment),
+    TRIM(country),
+    TRIM(city),
+    TRIM(state),
+    postal_code,
+    TRIM(region),
+    TRIM(category),
+    TRIM(sub_category),
+    sales,
+    quantity,
+    discount,
+    profit,
+    CASE WHEN sales = 0 THEN 0 ELSE ROUND(profit / sales, 4) END AS profit_margin,
+    CASE WHEN profit < 0 THEN 1 ELSE 0 END AS is_loss,
+    CASE
+        WHEN discount = 0    THEN '0%'
+        WHEN discount <= 0.2 THEN '1-20%'
+        WHEN discount <= 0.4 THEN '21-40%'
+        ELSE '41%+'
+    END AS discount_bucket
+FROM (
+    SELECT *,
+           ROW_NUMBER() OVER (PARTITION BY ship_mode, segment, country, city, state, postal_code, region, category, sub_category, sales, quantity, discount, profit
+               ORDER BY (SELECT NULL)
+           ) AS rn
+    FROM bronze.superstore_sales
+) x
+WHERE rn = 1;          
+GO
+
+-- =========================================================
+-- Validasi hasil Silver
+-- =========================================================
+SELECT COUNT(*) AS total_baris FROM silver.superstore_sales;
+GO
+
+-- pastikan tidak ada duplikat lagi
+SELECT COUNT(*) AS sisa_duplikat
+FROM (
+    SELECT COUNT(*) AS n
+    FROM silver.superstore_sales
+    GROUP BY ship_mode, segment, country, city, state, postal_code, region,
+             category, sub_category, sales, quantity, discount, profit
+    HAVING COUNT(*) > 1
+) d;
+GO
+
+-- cek kolom turunan
+SELECT DISTINCT discount_bucket FROM silver.superstore_sales;
+SELECT SUM(is_loss) AS transaksi_rugi FROM silver.superstore_sales;
+SELECT TOP 10 * FROM silver.superstore_sales;
+GO
